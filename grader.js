@@ -24,8 +24,11 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var rest    = require('restler'); 
+var util    = require('util');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+var URLFILE_DEFAULT = "http://limitless-fjord-4687.herokuapp.com";
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -34,6 +37,24 @@ var assertFileExists = function(infile) {
 	process.exit(1); // http://nodesjs.org/api/process.html#process_process_exit_code
     }
     return instr;
+
+};
+var assertUrlExists = function(inurl) {
+    var instr;
+
+    rest.get(inurl).on('complete',function(result, response) {
+
+	instr = result.toString();
+
+        if (result instanceof Error) {
+	    console.log("Does not exist.Exiting." + util.format(response.message));
+        } else {
+	    
+	    checkUrlFile(result,program.checks);
+	    }
+    });
+
+    return inurl;
 };
 
 var cheerioHtmlFile = function(htmlfile) {
@@ -55,6 +76,20 @@ var checkHtmlFile = function(htmlfile, checksfile){
     return out;
 };
 
+var checkUrlFile = function(htmlfile, checksfile){
+    $ = cheerio.load(htmlfile);
+    var checks = loadChecks(checksfile).sort();
+    var out = {};
+    for(var ii in checks){
+	var present = $(checks[ii]).length > 0;
+	out[checks[ii]] = present;
+    };
+
+    var outJson = JSON.stringify(out, null, 4);
+    console.log(outJson);
+
+};
+
 var clone = function(fn){
     // Workaround for commaner.js issue.
     // http://stackoverflow.com/a/6772648
@@ -66,10 +101,26 @@ if(require.main == module){
     program
 	.option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
 	.option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+	.option('-u, --url <url_file>', 'Url for index.html', clone(assertUrlExists), URLFILE_DEFAULT)
 	.parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+    /*console.log(Object.keys(program));
+      console.log('commands : '+program.commands);
+      console.log('options : '+program.options);
+      console.log('_args : '+program._args);
+      console.log('_name : '+program._name);
+
+      console.log('checks : '+program.checks);
+      console.log('_events : '+program._events);
+      console.log('file : '+program.file);
+      console.log('url : '+program.url);
+      console.log('rawargs : '+program.rawArgs);
+      console.log('args : '+program.args);*/ 
+    var checkJson;
+    if (!program.url){
+	checkJson = checkHtmlFile(program.file, program.checks);
+	var outJson = JSON.stringify(checkJson, null, 4);
+	console.log(outJson);
+    }
 } else {
-     exports.checkHtmlFile = checkHtmlFile;
+    exports.checkHtmlFile = checkHtmlFile;
 }
